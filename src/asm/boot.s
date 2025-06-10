@@ -1,7 +1,7 @@
 # Disable generation of compressed instructions
 .option norvc
 
-
+.section .data
 /*
     Define a `.text.init section`. The .text.init is put at the starting address
     so that the entry `_start` is put at the RISC-V adress 0x8000_0000.
