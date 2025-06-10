@@ -1,4 +1,4 @@
-﻿/*
+/*
  virt.lds
  Linker script for outputting to RISC-V QEMU "virt" machine.
  Stephen Marz
