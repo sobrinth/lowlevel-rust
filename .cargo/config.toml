@@ -1,4 +1,5 @@
 ﻿[build]
+target = "riscv64gc-unknown-none-elf"
 rustflags = ['-Clink-arg=-Tsrc/lds/virt.lds']
 
 [target.riscv64gc-unknown-none-elf]

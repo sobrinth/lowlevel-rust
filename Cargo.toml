@@ -3,4 +3,9 @@ name = "lowlevel-rust"
 version = "0.1.0"
 edition = "2024"
 
+[profile.dev]
+panic = "abort"
+opt-level = 0
+lto = false
+
 [dependencies]
