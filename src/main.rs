@@ -3,6 +3,7 @@
 #![feature(lang_items)]
 #![allow(internal_features)]
 
+use crate::page::PAGE_ORDER;
 use core::arch::asm;
 
 #[lang = "eh_personality"]
@@ -113,6 +114,19 @@ extern "C" fn kmain() {
                 }
             }
         }
+    }
+}
+
+/// Identity map range
+/// Takes a contiguous allocation of memory and maps it using PAGE_SIZE
+/// This assumes start <= end
+pub fn id_map_range(root: &mut page::Table, start: usize, end: usize, bits: usize) {
+    let mut memaddr = start & !(page::PAGE_SIZE - 1);
+    let num_kb_pages = (page::align_val(end, 12) - memaddr) / page::PAGE_SIZE;
+
+    for _ in 0..num_kb_pages {
+        page::map(root, memaddr, memaddr, bits, 0);
+        memaddr += 1 << PAGE_ORDER;
     }
 }
 

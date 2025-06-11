@@ -1,4 +1,3 @@
-use crate::page::EntryBits::Read;
 use crate::page::PageBits::{Last, Taken};
 use core::ptr::null_mut;
 
@@ -89,7 +88,7 @@ pub fn alloc_page(pages: usize) -> *mut u8 {
         */
         let num_usable_pages = (MEMORY_END - ALLOC_START) / PAGE_SIZE;
         let bp = HEAP_START as *mut Page;
-        for i in 0..num_usable_pages {
+        for i in 0..=num_usable_pages.saturating_sub(pages) {
             // Check to see if the page is free. If so, we have our first candidate memory
             if (*bp.add(i)).is_free() {
                 let mut found = true;
@@ -228,6 +227,7 @@ pub fn print_page_allocations() {
 
 #[repr(i64)]
 #[derive(Copy, Clone)]
+#[allow(dead_code)]
 pub enum EntryBits {
     None = 0,
     Valid = 1 << 0,
@@ -251,8 +251,8 @@ pub enum EntryBits {
 }
 
 impl EntryBits {
-    pub fn val(self) -> i64 {
-        self as i64
+    pub fn val(self) -> usize {
+        self as usize
     }
 }
 
@@ -267,10 +267,8 @@ impl Table {
     }
 }
 
-/// A single entry. Using an i64 so that this will sign-extend rather than zero-extend since
-/// RISC-V requires that the reserved sections take the most significant bit.
 pub struct Entry {
-    pub entry: i64,
+    pub entry: usize,
 }
 
 impl Entry {
@@ -292,7 +290,7 @@ impl Entry {
         !self.is_leaf()
     }
 
-    pub fn set_entry(&mut self, entry: i64) {
+    pub fn set_entry(&mut self, entry: usize) {
         self.entry = entry;
     }
 }
@@ -307,7 +305,7 @@ impl Entry {
 ///       The bits MUST include one or more of the following:
 ///         Read, Write, Execute
 ///       The valid bit automatically gets added.
-pub fn map(root: &mut Table, vaddr: usize, paddr: usize, bits: i64, level: usize) {
+pub fn map(root: &mut Table, vaddr: usize, paddr: usize, bits: usize, level: usize) {
     // Make sure that R, W, or X have been provided. Otherwise, we'll leak memory and always page fault.
     assert_ne!(bits & 0xe, 0);
 
@@ -353,7 +351,7 @@ pub fn map(root: &mut Table, vaddr: usize, paddr: usize, bits: i64, level: usize
             // allocate a page
             let page = zalloc_page(1);
             // The page is already aligned, so store it directly. The page is stored in the entry >> 2
-            v.set_entry((page as i64 >> 2) | EntryBits::Valid.val());
+            v.set_entry((page as usize >> 2) | EntryBits::Valid.val());
         }
         let entry = ((v.entry & !0x3ff) << 2) as *mut Entry; // Page address of entry (without the bits)
         v = unsafe { entry.add(vpn[i]).as_mut().unwrap() };
@@ -362,9 +360,9 @@ pub fn map(root: &mut Table, vaddr: usize, paddr: usize, bits: i64, level: usize
     /*
     When we get here, we should be at VPN[0] and v should be pointing to our entry.
      */
-    let entry = (ppn[2] << 28) as i64
-        | (ppn[1] << 19) as i64
-        | (ppn[0] << 10) as i64
+    let entry = (ppn[2] << 28)
+        | (ppn[1] << 19)
+        | (ppn[0] << 10)
         | bits
         | EntryBits::Valid.val();
     v.set_entry(entry);
@@ -423,7 +421,7 @@ pub fn virt_to_phys(root: &Table, vaddr: usize) -> Option<usize> {
              */
             let off_mask = (1 << (12 + i * 9)) - 1;
             let vaddr_pgoff = vaddr & off_mask;
-            let addr = ((v.entry << 12) as usize) & !off_mask;
+            let addr = (v.entry << 12) & !off_mask;
             return Some(addr | vaddr_pgoff);
         }
 
