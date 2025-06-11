@@ -397,3 +397,44 @@ pub fn unmap(root: &mut Table) {
         }
     }
 }
+
+/// Walk the page table to convert a virtual address to a physical address
+/// If a page fault occurs, this returns `None`
+/// Otherwise, it returns `Some` with the physical address
+pub fn virt_to_phys(root: &Table, vaddr: usize) -> Option<usize> {
+    // Walk the page table pointed to by the root
+    let vpn = [
+        (vaddr >> 12) & 0x1ff,
+        (vaddr >> 21) & 0x1ff,
+        (vaddr >> 30) & 0x1ff,
+    ];
+
+    let mut v = &root.entries[vpn[2]];
+    for i in (0..=2).rev() {
+        if v.is_invalid() {
+            // This is an invalid entry -> page fault
+            break;
+        } else if v.is_leaf() {
+            /*
+            According to RISC-V, a leaf can be at any level.
+
+            The offset mask masks off the PPN. Each PPN is 9 bits, and they start at bit #12.
+            So the formula is: 12 + i * 9
+             */
+            let off_mask = (1 << (12 + i * 9)) - 1;
+            let vaddr_pgoff = vaddr & off_mask;
+            let addr = ((v.entry << 12) as usize) & !off_mask;
+            return Some(addr | vaddr_pgoff);
+        }
+
+        /*
+        Set `v` to the next entry, which is pointed to by this entry. However, the address was shifted
+        right by 2 places when stored in the PTE, so we shift it left.else
+         */
+        let entry = ((v.entry & !0x3ff) << 2) as *const Entry;
+        // We do i-1 here, which can be dangerous. We should get None or Some() above before we do 0 - 1 = -1
+        v = unsafe { entry.add(vpn[i - 1]).as_ref().unwrap() };
+    }
+    // Exhausted all valid tables and haven't found a leaf
+    None
+}
