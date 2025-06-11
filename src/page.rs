@@ -1,3 +1,4 @@
+use crate::page::EntryBits::Read;
 use crate::page::PageBits::{Last, Taken};
 use core::ptr::null_mut;
 
@@ -220,5 +221,179 @@ pub fn print_page_allocations() {
             (num_pages - num) * PAGE_SIZE
         );
         println!();
+    }
+}
+
+// MMU
+
+#[repr(i64)]
+#[derive(Copy, Clone)]
+pub enum EntryBits {
+    None = 0,
+    Valid = 1 << 0,
+    Read = 1 << 1,
+    Write = 1 << 2,
+    Execute = 1 << 3,
+    User = 1 << 4,
+    Global = 1 << 5,
+    Access = 1 << 6,
+    Dirty = 1 << 7,
+
+    // Convenience combinations
+    ReadWrite = 1 << 1 | 1 << 2,
+    ReadExecute = 1 << 1 | 1 << 3,
+    ReadWriteExecute = 1 << 1 | 1 << 2 | 1 << 3,
+
+    // User convenience combinations
+    UserReadWrite = 1 << 4 | 1 << 1 | 1 << 2,
+    UserReadExecute = 1 << 4 | 1 << 1 | 1 << 3,
+    UserReadWriteExecute = 1 << 4 | 1 << 1 | 1 << 2 | 1 << 3,
+}
+
+impl EntryBits {
+    pub fn val(self) -> i64 {
+        self as i64
+    }
+}
+
+/// Table represents a single table, which contains 512 (2^9) entries.
+pub struct Table {
+    pub entries: [Entry; 512],
+}
+
+impl Table {
+    pub fn len() -> usize {
+        512
+    }
+}
+
+/// A single entry. Using an i64 so that this will sign-extend rather than zero-extend since
+/// RISC-V requires that the reserved sections take the most significant bit.
+pub struct Entry {
+    pub entry: i64,
+}
+
+impl Entry {
+    pub fn is_valid(&self) -> bool {
+        self.entry & EntryBits::Valid.val() != 0
+    }
+
+    // The first bit (bit index #0 is the V-bit for valid
+    pub fn is_invalid(&self) -> bool {
+        !self.is_valid()
+    }
+
+    // A leaf has one or more RWX bits set
+    pub fn is_leaf(&self) -> bool {
+        self.entry & 0xe != 0
+    }
+
+    pub fn is_branch(&self) -> bool {
+        !self.is_leaf()
+    }
+
+    pub fn set_entry(&mut self, entry: i64) {
+        self.entry = entry;
+    }
+}
+
+/// Map a virtual address to a physical address using 4096-byte page size.
+/// root: a mutable reference to the root Table
+/// vaddr: The virtual address to map
+/// paddr: The physical address to map
+/// bits: An OR'd bitset containing the bits the leaf should have.
+///       The bits should contain only the following:
+///         Read, Write, Execute, User, and/or Global
+///       The bits MUST include one or more of the following:
+///         Read, Write, Execute
+///       The valid bit automatically gets added.
+pub fn map(root: &mut Table, vaddr: usize, paddr: usize, bits: i64, level: usize) {
+    // Make sure that R, W, or X have been provided. Otherwise, we'll leak memory and always page fault.
+    assert_ne!(bits & 0xe, 0);
+
+    /*
+    Extract out each Virtual Page Number (VPN) from the virtual address.
+    On the virtual address, each VPN is exactly 9 bits,
+    which is why we use the mask 0x1ff = 0b1_1111_1111 (9 bits)
+     */
+    let vpn = [
+        // VPN[0] = vaddr[20:12]
+        (vaddr >> 12) & 0x1ff,
+        // VPN[1] = vaddr[29:21]
+        (vaddr >> 21) & 0x1ff,
+        // VPN[2] = vaddr[38:30]
+        (vaddr >> 30) & 0x1ff,
+    ];
+
+    /*
+    Extract out each Physical Page Number (PPN) from the physical address.
+    However, PPN[2] is different in that it stores 26 bits instead of 9.
+    Therefore, we use, 0x3ff_ffff = 0b11_1111_1111_1111_1111_1111_1111 (26 bits)
+     */
+    let ppn = [
+        // PPN[0] = paddr[20:12]
+        (paddr >> 12) & 0x1ff,
+        // PPN[1] = paddr[29:21]
+        (paddr >> 21) & 0x1ff,
+        // PPN[2] = paddr[55:30]
+        (paddr >> 30) & 0x3ff_ffff,
+    ];
+
+    // Floating reference to set while walking the table
+    let mut v = &mut root.entries[vpn[2]];
+
+    /*
+    Now, traverse the page table and set the bits properly. We expect the root to be
+    valid, however, we're required to create anything beyond the root.
+    We reverse the iteration since we need to start with VPN[2]. The range operator is inclusive
+    at the start but exclusive at the end, so (0..2) will iterate 0 and 1.
+    */
+    for i in (level..2).rev() {
+        if v.is_invalid() {
+            // allocate a page
+            let page = zalloc_page(1);
+            // The page is already aligned, so store it directly. The page is stored in the entry >> 2
+            v.set_entry((page as i64 >> 2) | EntryBits::Valid.val());
+        }
+        let entry = ((v.entry & !0x3ff) << 2) as *mut Entry; // Page address of entry (without the bits)
+        v = unsafe { entry.add(vpn[i]).as_mut().unwrap() };
+    }
+
+    /*
+    When we get here, we should be at VPN[0] and v should be pointing to our entry.
+     */
+    let entry = (ppn[2] << 28) as i64
+        | (ppn[1] << 19) as i64
+        | (ppn[0] << 10) as i64
+        | bits
+        | EntryBits::Valid.val();
+    v.set_entry(entry);
+}
+
+/// Unmaps and frees all memory associated with a table.
+/// root: The root table to start freeing.
+/// NOTE: This does not free root directly. This must be freed manually
+///       The reason we don't free root is that it is usually embedded into the Process structure
+pub fn unmap(root: &mut Table) {
+    // Start with level 2
+    for lv2 in 0..Table::len() {
+        let entry_lv2 = &root.entries[lv2];
+        if entry_lv2.is_valid() && entry_lv2.is_branch() {
+            // This is a valid entry, so drill down and free
+            let memaddr_lv1 = (entry_lv2.entry & !0x3ff) << 2;
+            let table_lv1 = unsafe {
+                // Make table_lv1 a &mut instead of pointer
+                (memaddr_lv1 as *mut Table).as_mut().unwrap()
+            };
+            for lv1 in 0..Table::len() {
+                let entry_lv1 = &table_lv1.entries[lv1];
+                if entry_lv1.is_valid() && entry_lv1.is_branch() {
+                    let memaddr_lv0 = (entry_lv1.entry & !0x3ff) << 2;
+                    // The next level is level 0, which cannot have branches, so free here
+                    free_page(memaddr_lv0 as *mut u8);
+                }
+            }
+            free_page(memaddr_lv1 as *mut u8);
+        }
     }
 }

@@ -56,19 +56,19 @@ impl Uart {
             bp.add(0x3).write_volatile(lcr)
         }
     }
-    
+
     pub fn get(&self) -> Option<u8> {
         let bp = self.base_address as *const u8;
         unsafe {
             if bp.add(0x5).read_volatile() & 1 == 0 {
                 // The DR bit is 0, meaning no data is available
                 None
-            } else { 
-               Some(bp.add(0x0).read_volatile()) 
+            } else {
+                Some(bp.add(0x0).read_volatile())
             }
         }
     }
-    
+
     pub fn put(&self, byte: u8) {
         let bp = self.base_address as *mut u8;
         unsafe {
