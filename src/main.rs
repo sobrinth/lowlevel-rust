@@ -52,9 +52,55 @@ extern "C" fn kmain() {
     // Main should initialize all the things
     let uart = uart::Uart::new(0x1000_0000);
     uart.init();
-    
-    println!("Welcome to Rust land!")
+
+    println!("Welcome to Rust land!");
+
+    // Terrible keyboard input echo loop. It will miss stuff, and just bruteforce type, but it's a start.
+    loop {
+        if let Some(c) = uart.get() {
+            match c {
+                8 => {
+                    // This is a backspace, so we essentially have to write a space and backup again:
+                    print!("{}{}{}", 8 as char, ' ', 8 as char);
+                }
+                10 | 13 => {
+                    // CR or LF
+                    println!();
+                }
+                0x1b => {
+                    // ANSI escape sequence (ESC[...). These are multibyte sequences, so we take a chance and read ourselves.
+                    if let Some(next_byte) = uart.get() {
+                        if next_byte == 0x5b {
+                            // [
+                            if let Some(b) = uart.get() {
+                                match b as char {
+                                    'A' => {
+                                        println!("That's the up arrow");
+                                    }
+                                    'B' => {
+                                        println!("That's the down arrow");
+                                    }
+                                    'C' => {
+                                        println!("That's the right arrow");
+                                    }
+                                    'D' => {
+                                        println!("That's the left arrow");
+                                    }
+                                    _ => {
+                                        println!("Unhandled escape sequence");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {
+                    print!("{}", c as char);
+                }
+            }
+        }
+    }
 }
 
-pub mod assembly;
+mod assembly;
 mod uart;
