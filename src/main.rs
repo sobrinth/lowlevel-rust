@@ -54,6 +54,7 @@ extern "C" fn kmain() {
     let uart = uart::Uart::new(0x1000_0000);
     uart.init();
     page::init();
+    kmem::init();
 
     println!();
     println!("/*******************************/");
@@ -133,3 +134,4 @@ pub fn id_map_range(root: &mut page::Table, start: usize, end: usize, bits: usiz
 mod assembly;
 mod page;
 mod uart;
+mod kmem;
