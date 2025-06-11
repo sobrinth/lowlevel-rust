@@ -185,7 +185,8 @@ pub fn print_page_allocations() {
             "PAGE ALLOCATION TABLE\nMETA: {:p} -> {:p}\nPHYS: 0x{:x} -> 0x{:x}",
             begin, end, alloc_begin, alloc_end
         );
-        println!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        println!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        println!("ALLOCATED PAGE RANGES");
         let mut num = 0;
         while begin < end {
             if (*begin).is_taken() {
@@ -206,7 +207,8 @@ pub fn print_page_allocations() {
             }
             begin = begin.add(1);
         }
-        println!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        println!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        println!("ALLOCATION SUMMARY");
         println!(
             "Allocated: {:>6} pages ({:>10} bytes).",
             num,

@@ -52,8 +52,21 @@ extern "C" fn kmain() {
     // Main should initialize all the things
     let uart = uart::Uart::new(0x1000_0000);
     uart.init();
+    page::init();
 
-    println!("Welcome to Rust land!");
+    println!();
+    println!("/*******************************/");
+    println!("/**** Welcome to Rust land! ****/");
+    println!("/*******************************/");
+
+    _ = page::alloc_page(1);
+    let a = page::alloc_page(1);
+    _ = page::alloc_page(128);
+    _ = page::alloc_page(1);
+    page::print_page_allocations();
+
+    page::free_page(a);
+    page::print_page_allocations();
 
     // Terrible keyboard input echo loop. It will miss stuff, and just bruteforce type, but it's a start.
     loop {
@@ -103,5 +116,5 @@ extern "C" fn kmain() {
 }
 
 mod assembly;
-mod uart;
 mod page;
+mod uart;
