@@ -12,7 +12,7 @@ extern "C" fn eh_personality() {}
 macro_rules! print {
     ($($args:tt)+) => ({
         use core::fmt::Write;
-        let _ = write!(crate::uart::Uart::new(0x1000_0000), $($args)+);
+        let _ = write!($crate::uart::Uart::new(0x1000_0000), $($args)+);
     });
 }
 
@@ -62,7 +62,8 @@ extern "C" fn kmain() {
     _ = page::alloc_page(1);
     let a = page::alloc_page(1);
     _ = page::alloc_page(128);
-    _ = page::alloc_page(1);
+    _ = page::zalloc_page(1);
+    _ = page::zalloc_page(1000);
     page::print_page_allocations();
 
     page::free_page(a);
@@ -82,26 +83,26 @@ extern "C" fn kmain() {
                 }
                 0x1b => {
                     // ANSI escape sequence (ESC[...). These are multibyte sequences, so we take a chance and read ourselves.
-                    if let Some(next_byte) = uart.get() {
-                        if next_byte == 0x5b {
-                            // [
-                            if let Some(b) = uart.get() {
-                                match b as char {
-                                    'A' => {
-                                        println!("That's the up arrow");
-                                    }
-                                    'B' => {
-                                        println!("That's the down arrow");
-                                    }
-                                    'C' => {
-                                        println!("That's the right arrow");
-                                    }
-                                    'D' => {
-                                        println!("That's the left arrow");
-                                    }
-                                    _ => {
-                                        println!("Unhandled escape sequence");
-                                    }
+                    if let Some(next_byte) = uart.get()
+                        && next_byte == 0x5b
+                    {
+                        // [
+                        if let Some(b) = uart.get() {
+                            match b as char {
+                                'A' => {
+                                    println!("That's the up arrow");
+                                }
+                                'B' => {
+                                    println!("That's the down arrow");
+                                }
+                                'C' => {
+                                    println!("That's the right arrow");
+                                }
+                                'D' => {
+                                    println!("That's the left arrow");
+                                }
+                                _ => {
+                                    println!("Unhandled escape sequence");
                                 }
                             }
                         }

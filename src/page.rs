@@ -54,6 +54,7 @@ impl Page {
         self.flags |= flag as u8;
     }
 
+    #[allow(dead_code)]
     pub fn clear_flag(&mut self, flag: PageBits) {
         self.flags &= !(flag as u8);
     }
@@ -88,10 +89,9 @@ pub fn alloc_page(pages: usize) -> *mut u8 {
         let num_usable_pages = (MEMORY_END - ALLOC_START) / PAGE_SIZE;
         let bp = HEAP_START as *mut Page;
         for i in 0..num_usable_pages {
-            let mut found = false;
             // Check to see if the page is free. If so, we have our first candidate memory
             if (*bp.add(i)).is_free() {
-                found = true;
+                let mut found = true;
                 for j in i..i + pages {
                     // Check if there is a contiguous allocation for all pages
                     if (*bp.add(j)).is_taken() {
@@ -198,7 +198,7 @@ pub fn print_page_allocations() {
                     if (*begin).is_last() {
                         let end = begin as usize;
                         let memaddr = ALLOC_START + (end - HEAP_START) * PAGE_SIZE + PAGE_SIZE - 1;
-                        print!("0x{:x}: {:>3} page(s)", memaddr, end - start + 1);
+                        print!("0x{:x}: {:>8} page(s)", memaddr, end - start + 1);
                         println!(".");
                         break;
                     }
