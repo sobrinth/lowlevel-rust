@@ -104,3 +104,4 @@ extern "C" fn kmain() {
 
 mod assembly;
 mod uart;
+mod page;
