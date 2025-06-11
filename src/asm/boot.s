@@ -12,7 +12,7 @@
 _start:
     # Any hardware threads (hart) that are not bootstrapping neet to wait for an IPI
     csrr    t0, mhartid
-    bnez    t0, park
+    bnez    t0, 3f
     # SATP should be zero, but make sure
     csrw    satp, zero
 
@@ -51,8 +51,9 @@ _start:
         0b11 << 11  : Machine's previous protection mode is 3 (MPP=3)
         1 << 7      : Machine's previous interrupt-enable bit is 1 (MPIE=1)
         1 << 3      : Machine's interrupt-enable bit is 1 (MIE=1)
+        Interrupts disabled for now as trapping leads to `wfi`
     */
-    li      t0, (0b11 << 11) | (1 << 7) | (1 << 3)
+    li      t0, (0b11 << 11) | (0 << 7) | (0 << 3)
     csrw    mstatus, t0
     
     # Machine's exception program counter (MEPC) is set to `kmain`
@@ -79,7 +80,7 @@ _start:
     mret
 
 
-park:
+3:
 /*
     Parked HARTs go here. They need to be set to only awaken if they receive a software interrupts,
     which is going to call the SIPI (Software Inter-Processor Interrupt).
@@ -88,5 +89,5 @@ park:
 
 4:
     wfi
-    j       park
+    j       4b
     

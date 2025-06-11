@@ -10,7 +10,10 @@ extern "C" fn eh_personality() {}
 
 #[macro_export]
 macro_rules! print {
-    ($($args:tt)+) => {{}};
+    ($($args:tt)+) => ({
+        use core::fmt::Write;
+        let _ = write!(crate::uart::Uart::new(0x1000_0000), $($args)+);
+    });
 }
 
 #[macro_export]
@@ -47,7 +50,11 @@ extern "C" fn abort() -> ! {
 #[unsafe(no_mangle)]
 extern "C" fn kmain() {
     // Main should initialize all the things
-    // Welcome to Rust land!
+    let uart = uart::Uart::new(0x1000_0000);
+    uart.init();
+    
+    println!("Welcome to Rust land!")
 }
 
 pub mod assembly;
+mod uart;
