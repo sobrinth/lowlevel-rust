@@ -179,6 +179,7 @@ pub fn coalesce() {
 
 /// For debugging purposes, print the kmem table
 pub fn print_table() {
+    println!("\nKMEM HEAP ALLOCATIONS:");
     unsafe {
         let mut head = KMEM_HEAD;
         let tail = KMEM_HEAD.byte_add(KMEM_ALLOC * PAGE_SIZE);

@@ -56,8 +56,8 @@ _start:
     li      t0, (0b11 << 11) | (0 << 7) | (0 << 3)
     csrw    mstatus, t0
     
-    # Machine's exception program counter (MEPC) is set to `kmain`
-    la      t1, kmain
+    # Machine's exception program counter (MEPC) is set to `kinit()`
+    la      t1, kinit
     csrw    mepc, t1
 
     # Machine's trap vector base address is set to `asm_trap_vector`
@@ -73,11 +73,14 @@ _start:
     li      t3, (1 << 3) | (1 << 7) | (1 << 11)
     csrw    mie, t3
 
-    # Set the return address to infinitely wait for interrupts.
-    la      ra, 4f
+    # Set the return address to get us into supervisor mode
+    la      ra, 2f
 
     # Usage of mret so that the mstatus register is properly updated (previous values -> current values e.g MPIE)
     mret
+
+2:
+
 
 
 3:

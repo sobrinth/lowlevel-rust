@@ -2,8 +2,12 @@
 #![no_main]
 #![feature(lang_items)]
 #![allow(internal_features)]
+extern crate alloc;
 
-use crate::page::PAGE_ORDER;
+use alloc::boxed::Box;
+use alloc::string::String;
+use alloc::vec;
+use crate::page::{PAGE_ORDER, PAGE_SIZE};
 use core::arch::asm;
 
 #[lang = "eh_personality"]
@@ -48,8 +52,30 @@ extern "C" fn abort() -> ! {
     }
 }
 
+// The following symbols come from asm/mem.s. We can use
+// the symbols directly, but the address of the symbols
+// themselves are their values, which can cause issues.
+// Instead, I created doubleword values in mem.s in the .rodata and .data
+// sections.
+unsafe extern "C" {
+    static TEXT_START: usize;
+    static TEXT_END: usize;
+    static DATA_START: usize;
+    static DATA_END: usize;
+    static RODATA_START: usize;
+    static RODATA_END: usize;
+    static BSS_START: usize;
+    static BSS_END: usize;
+    static KERNEL_STACK_START: usize;
+    static KERNEL_STACK_END: usize;
+    static HEAP_START: usize;
+    static HEAP_SIZE: usize;
+    static MEMORY_END: usize;
+    static mut KERNEL_TABLE: usize;
+}
+
 #[unsafe(no_mangle)]
-extern "C" fn kmain() {
+extern "C" fn kinit() -> usize {
     // Main should initialize all the things
     let uart = uart::Uart::new(0x1000_0000);
     uart.init();
@@ -61,17 +87,182 @@ extern "C" fn kmain() {
     println!("/**** Welcome to Rust land! ****/");
     println!("/*******************************/");
 
-    _ = page::alloc_page(1);
-    let a = page::alloc_page(1);
-    _ = page::alloc_page(128);
-    _ = page::zalloc_page(1);
-    _ = page::zalloc_page(1000);
+    // map heap allocations
+    let root_ptr = kmem::get_page_table();
+    let root_u = root_ptr as usize;
+    let root = unsafe { root_ptr.as_mut().unwrap() };
+    let kheap_head = kmem::get_head() as usize;
+    let total_pages = kmem::get_num_allocations();
+    println!();
+    println!();
+
+    unsafe {
+        println!("TEXT:   0x{:x} -> 0x{:x}", TEXT_START, TEXT_END);
+        println!("RODATA: 0x{:x} -> 0x{:x}", RODATA_START, RODATA_END);
+        println!("DATA:   0x{:x} -> 0x{:x}", DATA_START, DATA_END);
+        println!("BSS:    0x{:x} -> 0x{:x}", BSS_START, BSS_END);
+        println!(
+            "STACK:  0x{:x} -> 0x{:x}",
+            KERNEL_STACK_START, KERNEL_STACK_END
+        );
+        println!("HEAP:   0x{:x} -> 0x{:x}", HEAP_START, MEMORY_END);
+        println!(
+            "KHEAP:  0x{:x} -> 0x{:x}",
+            kheap_head,
+            kheap_head + total_pages * PAGE_SIZE
+        );
+    }
+
+    id_map_range(
+        root,
+        kheap_head,
+        kheap_head + total_pages * PAGE_SIZE,
+        page::EntryBits::ReadWrite.val(),
+    );
+
+    unsafe {
+        // Map heap descriptors
+        let num_pages = HEAP_SIZE / PAGE_SIZE;
+        id_map_range(
+            root,
+            HEAP_START,
+            HEAP_START + num_pages,
+            page::EntryBits::ReadWrite.val(),
+        );
+
+        // Map executable section
+        id_map_range(
+            root,
+            TEXT_START,
+            TEXT_END,
+            page::EntryBits::ReadExecute.val(),
+        );
+
+        // Map RODATA
+        // We put the ROdata section into the text section, so they can potentially overlap, however,
+        // we only care that it's read-only.
+        id_map_range(
+            root,
+            RODATA_START,
+            RODATA_END,
+            page::EntryBits::ReadExecute.val(),
+        );
+
+        // Map DATA section
+        id_map_range(root, DATA_START, DATA_END, page::EntryBits::ReadWrite.val());
+
+        // Map BSS section
+        id_map_range(root, BSS_START, BSS_END, page::EntryBits::ReadWrite.val());
+
+        // Map kernel stack
+        id_map_range(
+            root,
+            KERNEL_STACK_START,
+            KERNEL_STACK_END,
+            page::EntryBits::ReadWrite.val(),
+        );
+    }
+
+    // UART
+    page::map(
+        root,
+        0x1000_0000,
+        0x1000_0000,
+        page::EntryBits::ReadWrite.val(),
+        0,
+    );
+
+    // CLINT
+    // -> MSIP
+    page::map(
+        root,
+        0x0200_0000,
+        0x0200_0000,
+        page::EntryBits::ReadWrite.val(),
+        0,
+    );
+
+    // MTIMECMP
+    page::map(
+        root,
+        0x0200_b000,
+        0x0200_b000,
+        page::EntryBits::ReadWrite.val(),
+        0,
+    );
+
+    // MTIME
+    page::map(
+        root,
+        0x0200_c000,
+        0x0200_c000,
+        page::EntryBits::ReadWrite.val(),
+        0,
+    );
+
+    // PLIC
+    page::map(
+        root,
+        0x0c00_0000,
+        0x0c00_0000,
+        page::EntryBits::ReadWrite.val(),
+        0,
+    );
+    id_map_range(
+        root,
+        0x0c20_0000,
+        0x0c20_0000,
+        page::EntryBits::ReadWrite.val(),
+    );
+
     page::print_page_allocations();
 
-    page::free_page(a);
-    page::print_page_allocations();
+    // Example on how to walk to translate virt to phys. This will be used whenever a user space application
+    // requires services, since they only know virtual addresses.
+    let p = 0x8005_7000usize;
+    let m = page::virt_to_phys(root, p).unwrap_or(0);
+    println!("Walk 0x{:x} = 0x{:x}", p, m);
 
-    // Terrible keyboard input echo loop. It will miss stuff, and just bruteforce type, but it's a start.
+    /*
+    When we return from here, we'll go back to `boot.s` and switch into supervisor mode. We will return
+    the SATP register to be written. `root_u` is the root page table's address. When stored into the SATP
+    register, this is divided by 4 KiB (right shift by 12).
+    We enable the MMU by setting mode 8, bits 63, 62, 61 and 60 determine the mode.
+    0 = Bare (no translation)
+    8 = Sv39
+    9 = Sv48
+     */
+    unsafe {
+        // We have to store the kernel's table. The tables will be moved back and forth between the
+        // kernel's table and user applications' tables.
+        KERNEL_TABLE = root_u;
+    }
+    // table / 4096  Sv39 mode
+    (root_u << 12) | (8 << 60)
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn kmain() {
+    
+    // `kmain()` starts in supervisor mode. So, we should have the trap vector setup and the MMU
+    // turned on when we get here.
+    
+    // We initialized UART in machine mod under `kinit()`, so just grab a pointer
+    let uart = uart::Uart::new(0x1000_0000);
+    {
+        // Try out the allocator
+        let k = Box::<u32>::new(100);
+        println!("Boxed value = {}", *k);
+        
+        let sparkle_heart = vec![240, 159, 146, 150];
+        let sparkle_heart = String::from_utf8(sparkle_heart).unwrap();
+        println!("String = {}", sparkle_heart);
+        println!("\n\nAllocations of a box, vector, and string");
+        kmem::print_table();
+    }
+    println!("\n\nEverything should now be free:");
+    kmem::print_table();
+    
     loop {
         if let Some(c) = uart.get() {
             match c {
@@ -132,6 +323,6 @@ pub fn id_map_range(root: &mut page::Table, start: usize, end: usize, bits: usiz
 }
 
 mod assembly;
+mod kmem;
 mod page;
 mod uart;
-mod kmem;
