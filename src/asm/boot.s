@@ -67,9 +67,35 @@ _start:
     # Usage of mret so that the mstatus register is properly updated (previous values -> current values e.g MPIE)
     mret
 2:
+    # CPU will return to here once `kinit` returns from Rust.
 
 
+    # Set `mstatus` register
+    # 0b01 << 11    : MPP=1 [Supervisor]
+    # 1 << 7        : MPIE=1 [Enabled]
+    # 1 << 5        : SPIE=1 [Enabled]
+    li      t0, (0b01 << 11) | (1 << 7) | (1 << 5)
+    csrw    mstatus, t0
 
+    # Set machine mode trap vector
+    la      t2, asm_trap_vector
+    csrw    mtvec, t2
+
+    la      t1, kmain
+    csrw    mepc, t1
+
+    # set `mie` register (machine interrupt enable)
+    li      t2, 0x808 # MSIE, MTIE, MEIE // TODO: Reenable timer interrupt once done (0x888)
+    csrw    mie, t2
+
+    # sidestep PMP
+    li      t3, 0
+    csrw    pmpaddr0, t3
+    li      t4, 7 | (1 << 3) # RWX | A=TOR
+    csrw    pmpcfg0, t4
+
+
+    mret
 3:
 /*
     Parked HARTs go here. They need to be set to only awaken if they receive a software interrupts,

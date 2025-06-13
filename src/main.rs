@@ -75,7 +75,7 @@ unsafe extern "C" {
 }
 
 #[unsafe(no_mangle)]
-extern "C" fn kinit() -> usize {
+extern "C" fn kinit() {
     // Main should initialize all the things
     let uart = uart::Uart::new(0x1000_0000);
     uart.init();
@@ -223,22 +223,11 @@ extern "C" fn kinit() -> usize {
     let m = page::virt_to_phys(root, p).unwrap_or(0);
     println!("Walk 0x{:x} = 0x{:x}", p, m);
 
-    /*
-    When we return from here, we'll go back to `boot.s` and switch into supervisor mode. We will return
-    the SATP register to be written. `root_u` is the root page table's address. When stored into the SATP
-    register, this is divided by 4 KiB (right shift by 12).
-    We enable the MMU by setting mode 8, bits 63, 62, 61 and 60 determine the mode.
-    0 = Bare (no translation)
-    8 = Sv39
-    9 = Sv48
-     */
     unsafe {
         // We have to store the kernel's table. The tables will be moved back and forth between the
         // kernel's table and user applications' tables.
         KERNEL_TABLE = root_u;
     }
-    // table / 4096  Sv39 mode
-    (root_u << 12) | (8 << 60)
 }
 
 #[unsafe(no_mangle)]
