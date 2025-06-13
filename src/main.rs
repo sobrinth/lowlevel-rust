@@ -4,10 +4,10 @@
 #![allow(internal_features)]
 extern crate alloc;
 
+use crate::page::{PAGE_ORDER, PAGE_SIZE};
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec;
-use crate::page::{PAGE_ORDER, PAGE_SIZE};
 use core::arch::asm;
 
 #[lang = "eh_personality"]
@@ -75,7 +75,7 @@ unsafe extern "C" {
 }
 
 #[unsafe(no_mangle)]
-extern "C" fn kinit() {
+extern "C" fn __init() {
     // Main should initialize all the things
     let uart = uart::Uart::new(0x1000_0000);
     uart.init();
@@ -231,27 +231,28 @@ extern "C" fn kinit() {
 }
 
 #[unsafe(no_mangle)]
-extern "C" fn kmain() {
-    
+extern "C" fn __main() {
     // `kmain()` starts in supervisor mode. So, we should have the trap vector setup and the MMU
     // turned on when we get here.
-    
+
     // We initialized UART in machine mod under `kinit()`, so just grab a pointer
     let uart = uart::Uart::new(0x1000_0000);
     {
         // Try out the allocator
         let k = Box::<u32>::new(100);
         println!("Boxed value = {}", *k);
-        
-        let sparkle_heart = vec![240, 159, 146, 150];
-        let sparkle_heart = String::from_utf8(sparkle_heart).unwrap();
-        println!("String = {}", sparkle_heart);
+
+        let rainbow_vec = vec![
+            240, 159, 143, 179, 239, 184, 143, 226, 128, 141, 240, 159, 140, 136,
+        ];
+        let rainbow = String::from_utf8(rainbow_vec).unwrap();
+        println!("String = {}", rainbow);
         println!("\n\nAllocations of a box, vector, and string");
         kmem::print_table();
     }
     println!("\n\nEverything should now be free:");
     kmem::print_table();
-    
+
     loop {
         if let Some(c) = uart.get() {
             match c {

@@ -38,27 +38,18 @@ _start:
     addi    a0, a0, 8
     bltu    a0, a1, 1b
 2:
-    /*
-        Control registers, set the stack, mstatus, mepc, and mtvec to return to the main function.
-        Some is still commented out for later
-    */
+    # Control registers, set the stack, mstatus, mepc, and mtvec to return to the init function.
+
     la      sp, _stack_end
 
-    /*
-        Setting `mstatus` register:
-        0b11 << 11  : Machine's previous protection mode is 3 (MPP=3)
-        1 << 7      : Machine's previous interrupt-enable bit is 1 (MPIE=1)
-        1 << 3      : Machine's interrupt-enable bit is 1 (MIE=1)
-        Interrupts disabled for now as trapping leads to `wfi`
-    */
-    li      t0, (0b11 << 11)
+    li      t0, (0b11 << 11) # MPP=3 [Machine]
     csrw    mstatus, t0
 
-    # Do not allow interrupts while running `kinit()`
+    # Do not allow interrupts while running `__init()`
     csrw    mie, zero
     
-    # Machine's exception program counter (MEPC) is set to `kinit()`
-    la      t1, kinit
+    # Machine's exception program counter (MEPC) is set to `__init()`
+    la      t1, __init
     csrw    mepc, t1
 
     # Set the return address to get us into supervisor mode
@@ -67,8 +58,7 @@ _start:
     # Usage of mret so that the mstatus register is properly updated (previous values -> current values e.g MPIE)
     mret
 2:
-    # CPU will return to here once `kinit` returns from Rust.
-
+    # CPU will return to here once `__init` returns from Rust.
 
     # Set `mstatus` register
     # 0b01 << 11    : MPP=1 [Supervisor]
@@ -81,11 +71,11 @@ _start:
     la      t2, asm_trap_vector
     csrw    mtvec, t2
 
-    la      t1, kmain
+    la      t1, __main
     csrw    mepc, t1
 
     # set `mie` register (machine interrupt enable)
-    li      t2, 0x808 # MSIE, MTIE, MEIE // TODO: Reenable timer interrupt once done (0x888)
+    li      t2, (1 << 11) | (0 << 7) | (1 << 3) # MSIE, MTIE, MEIE // TODO: Enable MTIE once trap handler is there
     csrw    mie, t2
 
     # sidestep PMP
@@ -94,7 +84,7 @@ _start:
     li      t4, 7 | (1 << 3) # RWX | A=TOR
     csrw    pmpcfg0, t4
 
-
+    # 'Return' to __main in Supervisor mode
     mret
 3:
 /*

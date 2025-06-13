@@ -2,4 +2,5 @@
 asm_trap_vector:
     # This is invoked when the CPU is interrupted for any reason.
     li t6, 0xFFFF
-    mret
+    wfi
+    j       asm_trap_vector
