@@ -10,12 +10,6 @@
 
 .global _start
 _start:
-    # Any hardware threads (hart) that are not bootstrapping neet to wait for an IPI
-    csrr    t0, mhartid
-    bnez    t0, 3f
-    # SATP should be zero, but make sure
-    csrw    satp, zero
-
     /*
         Disable linker instruction relaxation for the `la` instruction below.
         This disallows the assembler from assuming that `gp` is already initialized.
@@ -25,6 +19,13 @@ _start:
     .option norelax
     la      gp, _global_pointer
     .option pop
+
+    # SATP should be zero, but make sure
+    csrw    satp, zero
+
+    # Any hardware threads (hart) that are not bootstrapping neet to wait for an IPI
+    csrr    t0, mhartid
+    bnez    t0, 3f
 
     # The BSS section is expected to be zero, and we have to ensure that
     la      a0, _bss_start
@@ -41,9 +42,6 @@ _start:
         Control registers, set the stack, mstatus, mepc, and mtvec to return to the main function.
         Some is still commented out for later
     */
-    # li      t5, 0xffff
-    # csrw    medeleg, t5
-    # csrw    mideleg, t5
     la      sp, _stack_end
 
     /*
@@ -53,32 +51,21 @@ _start:
         1 << 3      : Machine's interrupt-enable bit is 1 (MIE=1)
         Interrupts disabled for now as trapping leads to `wfi`
     */
-    li      t0, (0b11 << 11) | (0 << 7) | (0 << 3)
+    li      t0, (0b11 << 11)
     csrw    mstatus, t0
+
+    # Do not allow interrupts while running `kinit()`
+    csrw    mie, zero
     
     # Machine's exception program counter (MEPC) is set to `kinit()`
     la      t1, kinit
     csrw    mepc, t1
-
-    # Machine's trap vector base address is set to `asm_trap_vector`
-    la      t2, asm_trap_vector
-    csrw    mtvec, t2
-
-    /*
-        Setting Machine's interrupt-enable bits (`mie` register)
-        1 << 3  : Machine's M-mode software interrupt-enable bit is 1 (MSIE=1)
-        1 << 7  : Machine's timer interrupt-enable bit is 1 (MTIE=1)
-        1 << 11 : Machine's external interrupt-enable bit is 1 (MEIE=1)
-    */
-    li      t3, (1 << 3) | (1 << 7) | (1 << 11)
-    csrw    mie, t3
 
     # Set the return address to get us into supervisor mode
     la      ra, 2f
 
     # Usage of mret so that the mstatus register is properly updated (previous values -> current values e.g MPIE)
     mret
-
 2:
 
 
