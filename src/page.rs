@@ -360,11 +360,7 @@ pub fn map(root: &mut Table, vaddr: usize, paddr: usize, bits: usize, level: usi
     /*
     When we get here, we should be at VPN[0] and v should be pointing to our entry.
      */
-    let entry = (ppn[2] << 28)
-        | (ppn[1] << 19)
-        | (ppn[0] << 10)
-        | bits
-        | EntryBits::Valid.val();
+    let entry = (ppn[2] << 28) | (ppn[1] << 19) | (ppn[0] << 10) | bits | EntryBits::Valid.val();
     v.set_entry(entry);
 }
 
@@ -372,6 +368,7 @@ pub fn map(root: &mut Table, vaddr: usize, paddr: usize, bits: usize, level: usi
 /// root: The root table to start freeing.
 /// NOTE: This does not free root directly. This must be freed manually
 ///       The reason we don't free root is that it is usually embedded into the Process structure
+#[allow(dead_code)]
 pub fn unmap(root: &mut Table) {
     // Start with level 2
     for lv2 in 0..Table::len() {

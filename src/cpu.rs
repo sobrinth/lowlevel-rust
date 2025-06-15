@@ -24,6 +24,7 @@ impl TrapFrame {
 }
 
 #[repr(usize)]
+#[allow(dead_code)]
 pub enum SatpMode {
     Off = 0,
     SV39 = 8,
@@ -44,7 +45,7 @@ pub fn mscratch_write(val: usize) {
 
 pub fn mscratch_read() -> usize {
     unsafe {
-        let mut val: usize = 0;
+        let mut val: usize;
         asm!("csrr {}, mscratch", out(reg) val);
         val
     }

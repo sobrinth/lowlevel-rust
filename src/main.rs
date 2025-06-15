@@ -71,7 +71,6 @@ unsafe extern "C" {
     static HEAP_START: usize;
     static HEAP_SIZE: usize;
     static MEMORY_END: usize;
-    static mut KERNEL_TABLE: usize;
 }
 
 #[unsafe(no_mangle)]
@@ -79,13 +78,9 @@ extern "C" fn __init() {
     // Main should initialize all the things
     let uart = uart::Uart::new(0x1000_0000);
     uart.init();
+    println!("\n~~~~~~~  __init() starting  ~~~~~~~~\n\n");
     page::init();
     kmem::init();
-
-    println!();
-    println!("/*******************************/");
-    println!("/**** Welcome to Rust land! ****/");
-    println!("/*******************************/");
 
     // map heap allocations
     let root_ptr = kmem::get_page_table();
@@ -93,8 +88,6 @@ extern "C" fn __init() {
     let root = unsafe { root_ptr.as_mut().unwrap() };
     let kheap_head = kmem::get_head() as usize;
     let total_pages = kmem::get_num_allocations();
-    println!();
-    println!();
 
     unsafe {
         println!("TEXT:   0x{:x} -> 0x{:x}", TEXT_START, TEXT_END);
@@ -219,45 +212,48 @@ extern "C" fn __init() {
     unsafe {
         cpu::mscratch_write((&mut cpu::KERNEL_TRAP_FRAME[0] as *mut cpu::TrapFrame) as usize);
         cpu::KERNEL_TRAP_FRAME[0].satp = satp_value;
-        
+
         // Move the stack pointer to the very bottom
         cpu::KERNEL_TRAP_FRAME[0].trap_stack = page::zalloc_page(1).add(PAGE_SIZE);
-        
+
         id_map_range(
             root,
             cpu::KERNEL_TRAP_FRAME[0].trap_stack.sub(PAGE_SIZE) as usize,
             cpu::KERNEL_TRAP_FRAME[0].trap_stack as usize,
             page::EntryBits::ReadWrite.val(),
         );
-        
+
         // The trap frame itself is stored in mscratch
         id_map_range(
             root,
             cpu::mscratch_read(),
             cpu::mscratch_read() + size_of::<cpu::TrapFrame>(),
-            page::EntryBits::ReadWrite.val()
+            page::EntryBits::ReadWrite.val(),
         );
-        
+
         page::print_page_allocations();
-        let p = cpu::KERNEL_TRAP_FRAME[0].trap_stack as usize -1;
+        let p = cpu::KERNEL_TRAP_FRAME[0].trap_stack as usize - 1;
         let m = page::virt_to_phys(root, p).unwrap_or(0);
-        println!("Walk 0x{:x} = 0x{:x}", p, m);
+        println!("Validate id_map for TRAP_FRAME: 0x{:x} -> 0x{:x}", p, m);
     }
-    
-    println!("Setting 0x{:x}", satp_value);
-    println!("Scratch reg = 0x{:x}", cpu::mscratch_read());
+
+    println!("Setting SATP to: 0x{:x}", satp_value);
+    println!("MSCRATCH = 0x{:x}", cpu::mscratch_read());
     cpu::satp_write(satp_value);
     cpu::satp_fence_asid(0);
+    println!("~~~~~~~  __init() finished  ~~~~~~~~\n\n")
 }
 
 #[unsafe(no_mangle)]
 extern "C" fn __main() {
+    println!("\n~~~~~~~  __main() starting  ~~~~~~~~\n");
     // `kmain()` starts in supervisor mode. So, we should have the trap vector setup and the MMU
     // turned on when we get here.
 
     // We initialized UART in machine mod under `kinit()`, so just grab a pointer
     let uart = uart::Uart::new(0x1000_0000);
     {
+        println!("  ~~~~~  Start allocator testing  ~~~~~~  \n");
         // Try out the allocator
         let k = Box::<u32>::new(100);
         println!("Boxed value = {}", *k);
@@ -267,17 +263,20 @@ extern "C" fn __main() {
         ];
         let rainbow = String::from_utf8(rainbow_vec).unwrap();
         println!("String = {}", rainbow);
-        println!("\n\nAllocations of a box, vector, and string");
         kmem::print_table();
     }
     println!("\n\nEverything should now be free:");
     kmem::print_table();
 
+    println!("\n  ~~~~~  End allocator testing  ~~~~~~  \n");
+
     unsafe {
+        println!("  ~~~~~  Start trap handling testing  ~~~~~~  \n");
         make_syscall();
         // Force a page fault
-        let v = 0x8 as *mut u64;
-        *v.add(0) = 0;
+        let v = core::ptr::dangling_mut::<u64>();
+        *v = 0;
+        println!("\n  ~~~~~  End trap handling testing  ~~~~~~  \n");
     }
 
     loop {
@@ -335,7 +334,7 @@ unsafe extern "C" fn __init_hart(hartid: usize) {
     // All non-0 harts init here
     unsafe {
         cpu::mscratch_write((&mut cpu::KERNEL_TRAP_FRAME[hartid] as *mut cpu::TrapFrame) as usize);
-        
+
         cpu::sscratch_write(cpu::mscratch_read());
         cpu::KERNEL_TRAP_FRAME[hartid].hartid = hartid;
     }
