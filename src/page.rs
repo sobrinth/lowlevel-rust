@@ -421,7 +421,7 @@ pub fn virt_to_phys(root: &Table, vaddr: usize) -> Option<usize> {
              */
             let off_mask = (1 << (12 + i * 9)) - 1;
             let vaddr_pgoff = vaddr & off_mask;
-            let addr = (v.entry << 12) & !off_mask;
+            let addr = (v.entry << 2) & !off_mask;
             return Some(addr | vaddr_pgoff);
         }
 
