@@ -359,3 +359,4 @@ mod kmem;
 mod page;
 mod trap;
 mod uart;
+mod plic;
