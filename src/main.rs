@@ -157,25 +157,24 @@ extern "C" fn __init() {
     }
 
     // UART
-    page::map(
+    id_map_range(
         root,
         0x1000_0000,
-        0x1000_0000,
-        page::EntryBits::ReadWrite.val(),
-        0,
+        0x1000_0100,
+        page::EntryBits::ReadWrite.val()
     );
 
     // CLINT
     // -> MSIP
-    page::map(
+    id_map_range(
         root,
         0x0200_0000,
-        0x0200_0000,
-        page::EntryBits::ReadWrite.val(),
-        0,
+        0x0200_FFFF,
+        page::EntryBits::ReadWrite.val()
     );
-
+    
     // MTIMECMP
+    // TODO: Still needed?
     page::map(
         root,
         0x0200_b000,
@@ -185,6 +184,7 @@ extern "C" fn __init() {
     );
 
     // MTIME
+    // TODO: Still needed?
     page::map(
         root,
         0x0200_c000,
@@ -194,17 +194,16 @@ extern "C" fn __init() {
     );
 
     // PLIC
-    page::map(
+    id_map_range(
         root,
         0x0c00_0000,
-        0x0c00_0000,
+        0x0c00_2001,
         page::EntryBits::ReadWrite.val(),
-        0,
     );
     id_map_range(
         root,
         0x0c20_0000,
-        0x0c20_0000,
+        0x0c20_8001,
         page::EntryBits::ReadWrite.val(),
     );
 
