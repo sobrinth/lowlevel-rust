@@ -252,6 +252,12 @@ extern "C" fn __main() {
     }
     println!("\n\nEverything should now be free:");
     kmem::print_table();
+    
+    unsafe {
+        // Force a page fault
+        let v = 0x1 as *mut u64;
+        // _ = v.read_volatile();
+    }
 
     loop {
         if let Some(c) = uart.get() {
@@ -316,3 +322,5 @@ mod assembly;
 mod kmem;
 mod page;
 mod uart;
+mod cpu;
+mod trap;

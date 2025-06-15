@@ -68,14 +68,14 @@ _start:
     csrw    mstatus, t0
 
     # Set machine mode trap vector
-    la      t2, asm_trap_vector
+    la      t2, asm_trap_vector #_m_trap_dispatch
     csrw    mtvec, t2
 
     la      t1, __main
     csrw    mepc, t1
 
     # set `mie` register (machine interrupt enable)
-    li      t2, (1 << 11) | (0 << 7) | (1 << 3) # MSIE, MTIE, MEIE // TODO: Enable MTIE once trap handler is there
+    li      t2, (1 << 11) | (1 << 7) | (1 << 3) # MSIE, MTIE, MEIE // TODO: Enable MTIE once trap handler is there
     csrw    mie, t2
 
     # sidestep PMP
