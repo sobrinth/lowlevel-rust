@@ -72,7 +72,7 @@ _m_trap_dispatch:
     csrr    a3, mhartid
     csrr    a4, mstatus
     mv      a5, t5
-    ld      sp, 530(a5)
+    ld      sp, 520(a5)
     call    __machine_trap
 
     # Restore registers and return. Return value is in `a0`
@@ -91,3 +91,8 @@ _m_trap_dispatch:
     # the last loop automatically reloaded the correct value into `t6`
 
     mret
+
+.global make_syscall
+make_syscall:
+    ecall
+    ret

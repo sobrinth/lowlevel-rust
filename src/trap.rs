@@ -52,24 +52,17 @@ unsafe extern "C" fn __machine_trap(
             }
             8 => {
                 // ECALL from User mode
-                println!(
-                    "ECALL from User mode CPU#{} -> 0x{:08x}: 0x{:08x}\n",
-                    hart, epc, tval
-                );
+                println!("ECALL from User mode CPU#{} -> 0x{:08x}\n", hart, epc);
+                return_pc += 4;
             }
             9 => {
                 // ECALL from Supervisor mode
-                println!(
-                    "ECALL from Supervisor mode CPU#{} -> 0x{:08x}: 0x{:08x}\n",
-                    hart, epc, tval
-                );
+                println!("ECALL from Supervisor mode CPU#{} -> 0x{:08x}\n", hart, epc);
+                return_pc += 4;
             }
             11 => {
                 // ECALL from Machine mode
-                println!(
-                    "ECALL from Machine mode CPU#{} -> 0x{:08x}: 0x{:08x}\n",
-                    hart, epc, tval
-                );
+                panic!("ECALL from Machine mode CPU#{} -> 0x{:08x}\n", hart, epc);
             }
             12 => {
                 // Instruction page fault
@@ -93,6 +86,7 @@ unsafe extern "C" fn __machine_trap(
                     "Store/AMO page fault CPU#{} -> 0x{:08x}: 0x{:08x}\n",
                     hart, epc, tval
                 );
+                return_pc += 4;
             }
             _ => {
                 panic!("Unhandled sync trap CPU#{} -> {}\n", hart, trap_cause);

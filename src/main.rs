@@ -274,9 +274,10 @@ extern "C" fn __main() {
     kmem::print_table();
 
     unsafe {
+        make_syscall();
         // Force a page fault
-        let v = 0x1 as *mut u64;
-        // _ = v.read_volatile();
+        let v = 0x8 as *mut u64;
+        *v.add(0) = 0;
     }
 
     loop {
@@ -322,6 +323,21 @@ extern "C" fn __main() {
                 }
             }
         }
+    }
+}
+
+unsafe extern "C" {
+    fn make_syscall();
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn __init_hart(hartid: usize) {
+    // All non-0 harts init here
+    unsafe {
+        cpu::mscratch_write((&mut cpu::KERNEL_TRAP_FRAME[hartid] as *mut cpu::TrapFrame) as usize);
+        
+        cpu::sscratch_write(cpu::mscratch_read());
+        cpu::KERNEL_TRAP_FRAME[hartid].hartid = hartid;
     }
 }
 

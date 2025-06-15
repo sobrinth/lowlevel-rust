@@ -68,7 +68,7 @@ _start:
     csrw    mstatus, t0
 
     # Set machine mode trap vector
-    la      t2, asm_trap_vector #_m_trap_dispatch
+    la      t2, _m_trap_dispatch
     csrw    mtvec, t2
 
     la      t1, __main
@@ -92,6 +92,32 @@ _start:
     which is going to call the SIPI (Software Inter-Processor Interrupt).
     This may change, but is what is done for now.
 */
+    # divide the stack
+    la      sp, _stack_end
+    li      t0, 0x10000
+    csrr    a0, mhartid
+    mul     t0, t0, a0
+    sub     sp, sp, t0
+
+    # parked harts will be in machine mode with interrupts enabled
+    li      t0, 0b11 << 11 | (1 << 7)
+    csrw    mstatus, t0
+
+    # Allow for MSIP
+    li      t3, (1 << 3)
+    csrw    mie, t3
+
+    # set to rust init
+    la      t1, __init_hart
+    csrw    mepc, t1
+
+    # set trap vector
+    la      t2, _m_trap_dispatch
+    csrw    mtvec, t2
+
+    la      ra, 4f
+
+    mret
 
 4:
     wfi
