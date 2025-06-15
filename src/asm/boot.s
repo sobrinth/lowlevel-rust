@@ -86,6 +86,9 @@ _start:
     csrw    pmpcfg0, t4
 
     # 'Return' to __main in Supervisor mode
+
+    la      ra, 4f
+
     mret
 3:
 /*

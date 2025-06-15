@@ -35,7 +35,6 @@ unsafe extern "C" fn __machine_trap(
             },
             11 => {
                 // Machine External Interrupt (PLIC)
-                println!("Machine External Interrupt CPU#{}", hart);
                 // This is a bad idea to handle here in the trap context.
                 if let Some(interrupt) = plic::next() {
                     match interrupt {

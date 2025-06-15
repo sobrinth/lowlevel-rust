@@ -161,7 +161,7 @@ extern "C" fn __init() {
         root,
         0x1000_0000,
         0x1000_0100,
-        page::EntryBits::ReadWrite.val()
+        page::EntryBits::ReadWrite.val(),
     );
 
     // CLINT
@@ -170,9 +170,9 @@ extern "C" fn __init() {
         root,
         0x0200_0000,
         0x0200_FFFF,
-        page::EntryBits::ReadWrite.val()
+        page::EntryBits::ReadWrite.val(),
     );
-    
+
     // MTIMECMP
     // TODO: Still needed?
     page::map(
@@ -249,8 +249,6 @@ extern "C" fn __main() {
     // `kmain()` starts in supervisor mode. So, we should have the trap vector setup and the MMU
     // turned on when we get here.
 
-    // We initialized UART in machine mod under `kinit()`, so just grab a pointer
-    let uart = uart::Uart::new(0x1000_0000);
     {
         println!("  ~~~~~  Start allocator testing  ~~~~~~  \n");
         // Try out the allocator
@@ -277,51 +275,13 @@ extern "C" fn __main() {
         *v = 0;
         println!("\n  ~~~~~  End trap handling testing  ~~~~~~  \n");
     }
+    println!("  ~~~~~  Start PLIC setup  ~~~~~~  \n");
+    plic::set_threshold(0);
+    plic::enable(10);
+    plic::set_priority(10, 1);
 
-    loop {
-        if let Some(c) = uart.get() {
-            match c {
-                8 => {
-                    // This is a backspace, so we essentially have to write a space and backup again:
-                    print!("{}{}{}", 8 as char, ' ', 8 as char);
-                }
-                10 | 13 => {
-                    // CR or LF
-                    println!();
-                }
-                0x1b => {
-                    // ANSI escape sequence (ESC[...). These are multibyte sequences, so we take a chance and read ourselves.
-                    if let Some(next_byte) = uart.get()
-                        && next_byte == 0x5b
-                    {
-                        // [
-                        if let Some(b) = uart.get() {
-                            match b as char {
-                                'A' => {
-                                    println!("That's the up arrow");
-                                }
-                                'B' => {
-                                    println!("That's the down arrow");
-                                }
-                                'C' => {
-                                    println!("That's the right arrow");
-                                }
-                                'D' => {
-                                    println!("That's the left arrow");
-                                }
-                                _ => {
-                                    println!("Unhandled escape sequence");
-                                }
-                            }
-                        }
-                    }
-                }
-                _ => {
-                    print!("{}", c as char);
-                }
-            }
-        }
-    }
+    println!("\n  ~~~~~  End PLIC setup  ~~~~~~  \n");
+    println!("~~~~~~~  __main() finished  ~~~~~~~~\n\n")
 }
 
 unsafe extern "C" {
@@ -356,6 +316,6 @@ mod assembly;
 mod cpu;
 mod kmem;
 mod page;
+mod plic;
 mod trap;
 mod uart;
-mod plic;

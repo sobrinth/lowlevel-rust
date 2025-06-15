@@ -15,7 +15,7 @@
    PCIE = [32..35]
 */
 const PLIC_PRIO: usize = 0x0c00_0000;
-const PLIC_PENDING: usize = 0x0c00_1000;
+const _PLIC_PENDING: usize = 0x0c00_1000; // could be used to see if interrupt is pending
 const PLIC_ENABLE: usize = 0x0c00_2000;
 const PLIC_THRESHOLD: usize = 0x0c20_0000;
 const PLIC_CLAIM: usize = 0x0c20_0004;
