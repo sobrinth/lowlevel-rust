@@ -72,10 +72,9 @@ pub fn get_num_allocations() -> usize {
 /// If that's the case, use alloc/free from the page module.
 pub fn init() {
     unsafe {
-        // Allocate 64 kernel pages (262KiB)
-        let k_alloc = zalloc_page(64);
+        KMEM_ALLOC = 512;
+        let k_alloc = zalloc_page(KMEM_ALLOC);
         assert!(!k_alloc.is_null());
-        KMEM_ALLOC = 64;
         KMEM_HEAD = k_alloc as *mut AllocList;
         (*KMEM_HEAD).set_free();
         (*KMEM_HEAD).set_size(KMEM_ALLOC * PAGE_SIZE);
