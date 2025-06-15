@@ -215,19 +215,39 @@ extern "C" fn __init() {
         page::EntryBits::ReadWrite.val(),
     );
 
-    page::print_page_allocations();
-
-    // Example on how to walk to translate virt to phys. This will be used whenever a user space application
-    // requires services, since they only know virtual addresses.
-    let p = 0x8005_7000usize;
-    let m = page::virt_to_phys(root, p).unwrap_or(0);
-    println!("Walk 0x{:x} = 0x{:x}", p, m);
-
+    let satp_value = cpu::build_satp(cpu::SatpMode::SV39, 0, root_u);
     unsafe {
-        // We have to store the kernel's table. The tables will be moved back and forth between the
-        // kernel's table and user applications' tables.
-        KERNEL_TABLE = root_u;
+        cpu::mscratch_write((&mut cpu::KERNEL_TRAP_FRAME[0] as *mut cpu::TrapFrame) as usize);
+        cpu::KERNEL_TRAP_FRAME[0].satp = satp_value;
+        
+        // Move the stack pointer to the very bottom
+        cpu::KERNEL_TRAP_FRAME[0].trap_stack = page::zalloc_page(1).add(PAGE_SIZE);
+        
+        id_map_range(
+            root,
+            cpu::KERNEL_TRAP_FRAME[0].trap_stack.sub(PAGE_SIZE) as usize,
+            cpu::KERNEL_TRAP_FRAME[0].trap_stack as usize,
+            page::EntryBits::ReadWrite.val(),
+        );
+        
+        // The trap frame itself is stored in mscratch
+        id_map_range(
+            root,
+            cpu::mscratch_read(),
+            cpu::mscratch_read() + size_of::<cpu::TrapFrame>(),
+            page::EntryBits::ReadWrite.val()
+        );
+        
+        page::print_page_allocations();
+        let p = cpu::KERNEL_TRAP_FRAME[0].trap_stack as usize -1;
+        let m = page::virt_to_phys(root, p).unwrap_or(0);
+        println!("Walk 0x{:x} = 0x{:x}", p, m);
     }
+    
+    println!("Setting 0x{:x}", satp_value);
+    println!("Scratch reg = 0x{:x}", cpu::mscratch_read());
+    cpu::satp_write(satp_value);
+    cpu::satp_fence_asid(0);
 }
 
 #[unsafe(no_mangle)]
@@ -252,7 +272,7 @@ extern "C" fn __main() {
     }
     println!("\n\nEverything should now be free:");
     kmem::print_table();
-    
+
     unsafe {
         // Force a page fault
         let v = 0x1 as *mut u64;
@@ -319,8 +339,8 @@ pub fn id_map_range(root: &mut page::Table, start: usize, end: usize, bits: usiz
 }
 
 mod assembly;
+mod cpu;
 mod kmem;
 mod page;
-mod uart;
-mod cpu;
 mod trap;
+mod uart;
