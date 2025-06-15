@@ -1,5 +1,6 @@
 # Disable generation of compressed instructions
 .option norvc
+.attribute arch, "rv64gc"
 
 .section .data
 /*
