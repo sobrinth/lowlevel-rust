@@ -80,7 +80,7 @@ _start:
     csrw    mie, t2
 
     # sidestep PMP
-    li      t3, 0
+    li      t3, -1
     csrw    pmpaddr0, t3
     li      t4, 7 | (1 << 3) # RWX | A=TOR
     csrw    pmpcfg0, t4

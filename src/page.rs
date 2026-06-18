@@ -178,7 +178,7 @@ pub fn print_page_allocations() {
         let mut begin = HEAP_START as *const Page;
         let end = begin.add(num_pages);
         let alloc_begin = ALLOC_START;
-        let alloc_end = ALLOC_START + num_pages * PAGE_SIZE;
+        let alloc_end = MEMORY_END;
 
         println!();
         println!(
