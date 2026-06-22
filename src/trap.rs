@@ -23,7 +23,10 @@ unsafe extern "C" fn __machine_trap(
         // Async trap
         match trap_cause {
             3 => {
-                // Machine Software Interrupt
+                // Machine Software Interrupt — clear CLINT MSIP before returning
+                // to prevent infinite re-entry (CLINT does not auto-clear on trap entry)
+                let msip = (0x0200_0000usize + 4 * hart) as *mut u32;
+                unsafe { msip.write_volatile(0); }
                 println!("Machine Software Interrupt CPU#{}", hart);
             }
             7 => unsafe {
@@ -54,8 +57,8 @@ unsafe extern "C" fn __machine_trap(
         // Sync trap
         match trap_cause {
             2 => {
-                // Illegal instruction
-                println!(
+                // Illegal instruction — no process to recover, halt
+                panic!(
                     "Illegal instruction CPU#{} -> 0x{:08x}: 0x{:08x}\n",
                     hart, epc, tval
                 );

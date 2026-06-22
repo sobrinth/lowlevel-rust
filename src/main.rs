@@ -222,6 +222,19 @@ extern "C" fn __init() {
             page::EntryBits::ReadWrite.val(),
         );
 
+        // Pre-allocate trap stacks for secondary harts. __init_hart runs before the
+        // allocator is ready, so hart 0 does this on their behalf while memory is set up.
+        for hartid in 1..8usize {
+            let bottom = page::zalloc_page(1);
+            cpu::KERNEL_TRAP_FRAME[hartid].trap_stack = bottom.add(PAGE_SIZE);
+            id_map_range(
+                root,
+                bottom as usize,
+                bottom as usize + PAGE_SIZE,
+                page::EntryBits::ReadWrite.val(),
+            );
+        }
+
         // The trap frame itself is stored in mscratch
         id_map_range(
             root,
@@ -290,10 +303,10 @@ unsafe extern "C" {
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn __init_hart(hartid: usize) {
-    // All non-0 harts init here
+    // All non-0 harts init here. This runs immediately at boot (before the page allocator
+    // is ready), so hart 0 pre-allocates trap stacks for secondary harts inside __init().
     unsafe {
         cpu::mscratch_write((&mut cpu::KERNEL_TRAP_FRAME[hartid] as *mut cpu::TrapFrame) as usize);
-
         cpu::sscratch_write(cpu::mscratch_read());
         cpu::KERNEL_TRAP_FRAME[hartid].hartid = hartid;
     }
